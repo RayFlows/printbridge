@@ -1,0 +1,101 @@
+<view class="page admin-page">
+  <view class="admin-heading">
+    <view class="heading-copy">
+      <view class="admin-title">{{tab === 'users' ? '用户管理' : '设备与任务'}}</view>
+      <view wx:if="{{allowed}}" class="heading-meta">{{tab === 'users' ? '共 ' + userCount + ' 位打印用户' : printers.length + ' 台打印机 · ' + tasks.length + ' 个未完成任务'}}</view>
+    </view>
+    <t-button custom-style="width:80rpx;height:80rpx;min-width:0;padding:0;margin:0;" icon="refresh" variant="text" theme="primary"
+      aria-label="刷新管理信息" disabled="{{loading || acting}}" bind:tap="onRefresh" />
+  </view>
+  <view wx:if="{{error}}" class="feedback">
+    <view class="error" role="alert">{{error}}</view>
+    <t-button wx:if="{{!allowed}}" custom-style="margin:24rpx 0 0;width:auto;" icon="refresh" variant="outline" size="small" bind:tap="onRefresh">重试</t-button>
+  </view>
+  <view wx:if="{{loading}}" class="loading"><t-loading theme="circular" text="正在读取管理信息" /></view>
+  <block wx:if="{{allowed}}">
+    <t-tabs class="management-tabs" value="{{tab}}" theme="line" split="{{false}}" bind:change="onTab">
+      <t-tab-panel value="overview" label="看板">
+        <view class="panel-content">
+          <view class="panel-section service-row">
+            <view class="row-copy">
+              <view class="setting-title">开放新打印</view>
+              <view class="secondary">{{printingEnabled ? '正在接收新任务' : '已暂停接收新任务'}}</view>
+              <view class="setting-note">关闭后，已提交任务仍可继续</view>
+            </view>
+            <t-switch class="admission-switch" value="{{printingEnabled}}" size="small" loading="{{acting}}"
+              disabled="{{acting || loading}}" aria-label="开放新打印" catch:change="onPrinting" />
+          </view>
+          <view class="panel-section">
+            <view class="section-heading"><text>打印机</text><text class="section-count">{{printers.length}}</text></view>
+            <view wx:if="{{!printerStatusAvailable}}" class="warning-notice">暂时无法读取设备状态，用户管理和打印开关仍可使用。</view>
+            <view wx:for="{{printers}}" wx:key="id" class="device-row" hover-class="row-hover"
+              aria-role="button" aria-label="查看 {{item.name || item.id}} 的信息" data-id="{{item.id}}" bindtap="onInfo">
+              <view class="device-symbol"><image src="/assets/tabs/print-active.png" class="device-icon" mode="aspectFit" aria-hidden="true" /></view>
+              <view class="row-copy">
+                <view class="device-name">{{item.name || item.id}}</view>
+                <view class="device-status state-{{item.stateClass}}"><text class="state-dot"></text><text>{{item.stateLabel}}</text></view>
+                <view class="secondary">{{item.deviceLabel}}</view>
+                <view wx:if="{{item.activityLabel}}" class="secondary">{{item.activityLabel}}</view>
+                <view wx:if="{{item.reasonsLabel}}" class="warning-text">{{item.reasonsLabel}}</view>
+              </view>
+              <t-icon class="disclosure" name="chevron-right" size="36rpx" aria-hidden="true" />
+            </view>
+            <view wx:if="{{printerStatusAvailable && !printers.length}}" class="empty-region">
+              <t-empty icon="{{ {name: 'print', size: '64rpx'} }}" description="暂无可用打印机" />
+            </view>
+          </view>
+          <view class="panel-section">
+            <view class="section-heading"><text>未完成任务</text><text class="section-count">{{tasks.length}}</text></view>
+            <view wx:for="{{tasks}}" wx:key="id" class="task-row">
+              <view class="task-copy">
+                <view class="task-heading"><text class="record-name">{{item.userName || '未设置昵称 / 旧会话'}}</text><text class="task-state">{{item.label}}</text></view>
+                <view class="secondary">{{item.printerId}} · {{item.sheetCount}} 张</view>
+                <view class="identifier">任务 {{item.shortId}}</view>
+                <view wx:if="{{item.state === 'canceling' && item.deviceCancelRequired}}" class="warning-text">{{item.problem === 'device_cancel_failed' ? '设备清理暂未确认，正在重试。' : '正在停止并清理旧任务，请稍候。'}}</view>
+              </view>
+              <t-button class="row-action" custom-style="width:136rpx;min-width:136rpx;margin:0;padding:0 16rpx;" icon="close"
+                size="small" variant="outline" theme="danger" data-id="{{item.id}}" disabled="{{acting || item.state === 'canceling'}}" bind:tap="onCancel">取消</t-button>
+            </view>
+            <view wx:if="{{!tasks.length}}" class="empty-region">
+              <t-empty icon="{{ {name: 'check-circle', size: '64rpx'} }}" description="暂无未完成任务" />
+            </view>
+          </view>
+        </view>
+      </t-tab-panel>
+      <t-tab-panel value="users" label="用户">
+        <view class="panel-content">
+          <view class="panel-section user-tools">
+            <view class="user-counts">
+              <text>未设昵称 <text class="count-number">{{unnamedCount}}</text> 人</text>
+              <text>已封禁 <text class="count-number">{{bannedCount}}</text> 人</text>
+            </view>
+            <t-search class="user-search" placeholder="搜索称谓、昵称或编号" value="{{search}}" maxlength="80"
+              shape="square" clearable="{{true}}" clear-trigger="always" catch:change="onSearch" />
+          </view>
+          <view class="panel-section user-list">
+            <view class="section-heading"><text>{{search ? '搜索结果' : '全部用户'}}</text><text class="section-count">{{filteredUsers.length}}</text></view>
+            <view wx:for="{{filteredUsers}}" wx:key="id" class="user-row">
+              <view class="user-avatar {{item.isAdmin ? 'user-avatar-admin' : ''}}">
+                <image src="/assets/tabs/user.png" class="user-icon" mode="aspectFit" aria-hidden="true" />
+              </view>
+              <view class="row-copy">
+                <view class="user-heading">
+                  <text class="record-name">{{item.name || '未设置昵称'}}</text>
+                  <text wx:if="{{item.isAdmin}}" class="role-badge">管理员</text>
+                  <text wx:elif="{{item.banned}}" class="role-badge role-banned">已封禁</text>
+                </view>
+                <view class="identifier">编号 {{item.shortId}}</view>
+              </view>
+              <t-button wx:if="{{!item.isAdmin}}" class="row-action" custom-style="width:136rpx;min-width:136rpx;margin:0;padding:0 16rpx;"
+                icon="{{item.banned ? 'lock-off' : 'lock-on'}}" variant="outline" theme="{{item.banned ? 'primary' : 'danger'}}"
+                size="small" disabled="{{acting}}" data-id="{{item.id}}" bind:tap="onBan">{{item.banned ? '解封' : '封禁'}}</t-button>
+            </view>
+            <view wx:if="{{!filteredUsers.length}}" class="empty-region">
+              <t-empty icon="{{ {name: 'user-search', size: '64rpx'} }}" description="{{search ? '没有匹配的用户' : '暂无用户'}}" />
+            </view>
+          </view>
+        </view>
+      </t-tab-panel>
+    </t-tabs>
+  </block>
+</view>

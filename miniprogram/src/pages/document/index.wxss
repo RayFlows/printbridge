@@ -1,0 +1,17 @@
+.document-page { padding-bottom: calc(32rpx + env(safe-area-inset-bottom)); }
+.printer-bar { display: flex; align-items: center; gap: 16rpx; padding: 24rpx 32rpx; background: #fff; border-bottom: 2rpx solid #e1e6e7; }
+.printer-label { flex: 1; min-width: 0; font-size: 26rpx; word-break: break-all; line-height: 1.5; }
+.file-empty { padding: 84rpx 40rpx 56rpx; text-align: center; }
+.empty-title { margin-top: 24rpx; font-size: 36rpx; font-weight: 600; }
+.file-limit { margin-top: 16rpx; font-size: 24rpx; line-height: 1.6; }
+.choose-action { margin: 48rpx auto 0; max-width: 560rpx; }
+.photo-action { margin: 24rpx auto 0; max-width: 560rpx; }
+.file-strip { display: flex; align-items: center; gap: 12rpx; padding: 24rpx 32rpx; background: #fff; border-bottom: 2rpx solid #e1e6e7; }
+.file-symbol { width: 48rpx; flex: 0 0 48rpx; }
+.file-copy { flex: 1; min-width: 0; width: 0; }
+.file-name { font-size: 28rpx; font-weight: 600; line-height: 1.5; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-all; }
+.file-meta { font-size: 24rpx; color: #6d777b; margin-top: 8rpx; }
+.upload-error, .upload-retry { margin: 24rpx 32rpx; }
+.preparation { padding: 40rpx 32rpx; }
+.upload-progress { margin-top: 28rpx; height: 6rpx; background: #e2e8e8; overflow: hidden; }
+.upload-progress-fill { height: 100%; background: #087f73; }

@@ -1,0 +1,47 @@
+<view class="document-page">
+  <view class="printer-bar">
+    <t-icon name="print" size="36rpx" color="#087f73" />
+    <text class="printer-label">{{printerName}}</text>
+  </view>
+
+  <view wx:if="{{!fileName}}" class="file-empty">
+    <t-icon name="folder-open" size="88rpx" color="#087f73" />
+    <view class="empty-title">选择文档</view>
+    <view class="file-limit muted">Word · Excel · PPT · PDF · 图片</view>
+    <view class="file-limit muted">最大 20 MiB · 最多 500 页</view>
+    <view class="choose-action">
+      <t-button id="choose-file" custom-style="width:100%;margin:0;" theme="primary" icon="folder-open" block
+        loading="{{choosing}}" disabled="{{choosing}}" bind:tap="onChoose">从微信聊天选择</t-button>
+    </view>
+    <view class="photo-action">
+      <t-button id="choose-photo" custom-style="width:100%;margin:0;" theme="primary" variant="outline" icon="image" block
+        loading="{{choosing}}" disabled="{{choosing}}" bind:tap="onChoosePhoto">从相册选择</t-button>
+    </view>
+  </view>
+
+  <view wx:else class="file-strip">
+    <view class="file-symbol"><t-icon name="{{fileIcon}}" size="48rpx" color="#b64d43" /></view>
+    <view class="file-copy">
+      <view class="file-name">{{fileName}}</view>
+      <view class="file-meta">{{fileSize}}<text wx:if="{{document}}"> · {{document.pageCount}} 页</text></view>
+    </view>
+    <t-button id="replace-file" custom-style="width:72rpx;min-width:0;padding:0;margin:0;" icon="folder-open" variant="text" size="small" aria-label="重新选择文件"
+      disabled="{{status === 'uploading' || status === 'preparing' || choosing || status === 'ready'}}"
+      bind:tap="onChoose" />
+    <t-button custom-style="width:72rpx;min-width:0;padding:0;margin:0;" icon="image" variant="text" size="small" aria-label="从相册更换图片"
+      disabled="{{status === 'uploading' || status === 'preparing' || choosing || status === 'ready'}}"
+      bind:tap="onChoosePhoto" />
+  </view>
+
+  <view wx:if="{{error}}" class="error upload-error" role="alert">{{error}}</view>
+  <view wx:if="{{status === 'uploading' || status === 'preparing'}}" class="preparation">
+    <t-loading theme="circular" size="40rpx"
+      text="{{status === 'preparing' ? '正在转换并准备文档' : '正在上传 ' + progress + '%'}}" />
+    <view class="upload-progress" role="progressbar" aria-valuenow="{{progress}}" aria-valuemin="0" aria-valuemax="100">
+      <view class="upload-progress-fill" style="width: {{progress}}%;" />
+    </view>
+  </view>
+  <view wx:if="{{status === 'error'}}" class="upload-retry">
+    <t-button icon="refresh" theme="primary" variant="outline" block disabled="{{choosing}}" bind:tap="onRetryUpload">{{document ? '重试打开打印设置' : '重试上传'}}</t-button>
+  </view>
+</view>

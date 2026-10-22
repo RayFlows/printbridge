@@ -1,0 +1,2 @@
+PrintBridge 文本测试
+Synthetic text document.

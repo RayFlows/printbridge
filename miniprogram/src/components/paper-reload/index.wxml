@@ -1,0 +1,19 @@
+<view class="reload-guide">
+  <view class="steps">
+    <view class="step">
+      <image src="/assets/reload-collect.png" mode="aspectFit" class="drawing" aria-label="收好整叠纸，记住先出纸的短边" />
+      <view class="step-title">1 收好整叠纸</view>
+    </view>
+    <view class="step">
+      <image src="/assets/reload-turn.png" mode="aspectFit" class="drawing" aria-label="整叠沿纸张长边左右翻面，不调换上下两条短边" />
+      <view class="step-title">2 左右翻面</view>
+    </view>
+    <view class="step">
+      <image src="/assets/reload-insert.png" mode="aspectFit" class="drawing" aria-label="放回后纸盘，空白面朝向自己，原先先出纸的短边先插入" />
+      <view class="step-title">3 放回后纸盘</view>
+    </view>
+  </view>
+  <view class="edge-legend"><text class="edge-mark"></text><text>图中粉色短边代表先出纸的一边</text></view>
+  <view class="direction">空白面朝向自己，原先先出纸的短边先插入。</view>
+  <view class="reminder">等纸张全部输出后再翻，整叠保持顺序，保留空白纸。</view>
+</view>

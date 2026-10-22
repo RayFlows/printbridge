@@ -1,0 +1,92 @@
+<view class="settings-page {{error || previewError ? 'has-error' : ''}}">
+  <view wx:if="{{loading}}" class="status"><t-loading theme="circular" text="读取打印设置" /></view>
+  <view wx:elif="{{!document}}" class="status">
+    <view class="error">{{error}}</view>
+    <t-button icon="refresh" bind:tap="onRetry">重试</t-button>
+  </view>
+  <block wx:else>
+    <view class="document-heading">
+      <view class="file-symbol"><t-icon name="{{fileIcon}}" size="44rpx" color="#b64d43" /></view>
+      <view class="heading-copy"><view class="name">{{document.name}}</view><view class="muted">{{fileMeta}}</view></view>
+      <t-button id="reupload" custom-style="width:176rpx;min-width:0;padding:0;margin:0;" icon="upload" variant="text" size="small"
+        aria-label="重新上传" disabled="{{busy || replacing}}" bind:tap="onReplace">重新上传</t-button>
+    </view>
+    <view wx:if="{{replacing && replacementStatus !== 'choosing'}}" class="replacement-status" role="status">
+      <t-loading theme="circular" size="36rpx"
+        text="{{replacementStatus === 'uploading' ? '正在上传 ' + replacementProgress + '%' : replacementStatus === 'preparing' ? '正在转换并准备文档' : '正在更新预览'}}" />
+    </view>
+    <view wx:if="{{replacementError}}" class="error replacement-error" role="alert">{{replacementError}}</view>
+    <view class="printer-line"><t-icon name="print" size="30rpx" color="#087f73" /><text>{{printerName}}</text></view>
+    <view class="preview-section">
+      <view class="preview-stage">
+        <t-loading wx:if="{{previewBusy || preparing}}" theme="circular" text="正在更新预览" />
+        <image wx:elif="{{previewPath}}" src="{{previewPath}}" mode="aspectFit" class="page-image"
+          aria-label="第 {{page}} 面打印效果" bindtap="onZoom" binderror="onImageError" />
+        <view wx:else class="preview-empty">
+          <t-icon name="{{previewError ? 'error-circle' : 'file-search'}}" size="52rpx" color="#818c90" />
+          <view>{{previewError || error || '等待预览'}}</view>
+        </view>
+      </view>
+      <view class="page-toolbar">
+        <t-button custom-style="width:64rpx;min-width:0;padding:0;margin:0;" icon="chevron-left" variant="text" size="small"
+          aria-label="上一面" disabled="{{!plan || page <= 1 || previewBusy || preparing || busy || replacing}}" bind:tap="onPrevious" />
+        <text class="page-counter">{{plan ? '第 ' + page + ' / ' + (plan.previewPageCount || plan.pageCount) + ' 面' : document.pageCount + ' 页原稿'}}</text>
+        <t-button custom-style="width:64rpx;min-width:0;padding:0;margin:0;" icon="chevron-right" variant="text" size="small"
+          aria-label="下一面" disabled="{{!plan || page >= (plan.previewPageCount || plan.pageCount) || previewBusy || preparing || busy || replacing}}" bind:tap="onNext" />
+        <view class="zoom-action"><t-button custom-style="width:64rpx;min-width:0;padding:0;margin:0;" icon="zoom-in" variant="text" size="small"
+          aria-label="放大预览" disabled="{{!previewPath || preparing || previewBusy || busy || replacing}}" bind:tap="onZoom" /></view>
+      </view>
+    </view>
+    <view class="form">
+      <view class="row"><text class="label">颜色</text><view class="segments">
+        <button wx:for="{{colors}}" wx:key="value" class="segment {{colorIndex === index ? 'selected' : ''}}" size="mini"
+          data-field="colorMode" data-index="{{index}}" disabled="{{busy || replacing}}" bindtap="onSegment">{{item.label}}</button>
+      </view></view>
+      <view class="row"><text class="label">纸张</text><picker disabled="{{busy || replacing}}" range="{{media}}" range-key="label" value="{{mediaIndex}}" data-field="media" bindchange="onOption"><view class="choice"><text>{{media[mediaIndex].label}}</text><t-icon name="chevron-right" size="28rpx" /></view></picker></view>
+      <view class="row"><text class="label">单双面</text><picker disabled="{{busy || replacing}}" range="{{sides}}" range-key="label" value="{{sideIndex}}" data-field="sides" bindchange="onOption"><view class="choice"><text>{{sides[sideIndex].label}}</text><t-icon name="chevron-right" size="28rpx" /></view></picker></view>
+      <view class="row"><text class="label">份数</text><view class="stepper">
+        <t-button custom-style="width:64rpx;min-width:0;padding:0;margin:0;" icon="remove" variant="text" size="small" aria-label="减少份数" data-step="-1" disabled="{{busy || replacing || settings.copies <= 1}}" bind:tap="onCopyStep" />
+        <input type="number" maxlength="2" value="{{settings.copies}}" disabled="{{busy || replacing}}" bindinput="onCopies" aria-label="打印份数" />
+        <t-button custom-style="width:64rpx;min-width:0;padding:0;margin:0;" icon="add" variant="text" size="small" aria-label="增加份数" data-step="1" disabled="{{busy || replacing || settings.copies >= maxCopies}}" bind:tap="onCopyStep" />
+      </view></view>
+      <view class="row"><text class="label">页码范围</text><input class="range" value="{{settings.pages}}" placeholder="全部，例如 1-5,8" maxlength="2048" disabled="{{busy || replacing}}" bindinput="onPages" aria-label="页码范围" /></view>
+      <view class="row"><text class="label">每面页数</text><picker disabled="{{busy || replacing}}" range="{{nups}}" value="{{nupIndex}}" data-field="pagesPerSheet" bindchange="onOption"><view class="choice"><text>{{nups[nupIndex]}}</text><t-icon name="chevron-right" size="28rpx" /></view></picker></view>
+    </view>
+    <button class="section-toggle" style="width:100%;margin:0;" bindtap="onExpand" aria-expanded="{{expanded}}">
+      <text>高级设置</text><text class="toggle-summary">{{orientations[orientationIndex]}} · {{scalings[scalingIndex].label}}</text>
+      <t-icon name="{{expanded ? 'chevron-up' : 'chevron-down'}}" size="32rpx" />
+    </button>
+    <view wx:if="{{expanded}}" class="form advanced">
+      <view class="row"><text class="label">方向</text><view class="segments">
+        <button wx:for="{{orientations}}" wx:key="*this" size="mini" class="segment {{orientationIndex === index ? 'selected' : ''}}"
+          data-field="orientation" data-index="{{index}}" disabled="{{busy || replacing}}" bindtap="onSegment">{{item}}</button>
+      </view></view>
+      <view class="row"><text class="label">纸张类型</text><picker disabled="{{busy || replacing || mediaTypes.length < 2}}" range="{{mediaTypes}}" range-key="label" value="{{mediaTypeIndex}}" data-field="mediaType" bindchange="onOption"><view class="choice"><text>{{mediaTypes[mediaTypeIndex].label}}</text><t-icon wx:if="{{mediaTypes.length > 1}}" name="chevron-right" size="28rpx" /></view></picker></view>
+      <view class="row"><text class="label">进纸位置</text><picker disabled="{{busy || replacing || mediaSources.length < 2}}" range="{{mediaSources}}" range-key="label" value="{{mediaSourceIndex}}" data-field="mediaSource" bindchange="onOption"><view class="choice"><text>{{mediaSources[mediaSourceIndex].label}}</text><t-icon wx:if="{{mediaSources.length > 1}}" name="chevron-right" size="28rpx" /></view></picker></view>
+      <view class="row"><text class="label">缩放</text><picker disabled="{{busy || replacing}}" range="{{scalings}}" range-key="label" value="{{scalingIndex}}" data-field="scaling" bindchange="onOption"><view class="choice"><text>{{scalings[scalingIndex].label}}</text><t-icon name="chevron-right" size="28rpx" /></view></picker></view>
+      <view wx:if="{{settings.scaling === 'custom'}}" class="row"><text class="label">原稿比例</text><view class="scale"><input type="number" maxlength="3" value="{{settings.scalePercent}}" disabled="{{busy || replacing}}" bindinput="onScale" aria-label="原稿缩放百分比" /><text>%</text></view></view>
+      <view wx:if="{{settings.scaling === 'fill' || settings.scaling === 'actual' || settings.scaling === 'custom'}}" class="option-note">超出纸张的内容会被裁切。</view>
+      <view wx:if="{{settings.pagesPerSheet > 1}}" class="row"><text class="label">拼版顺序</text><picker disabled="{{busy || replacing}}" range="{{layouts}}" range-key="label" value="{{layoutIndex}}" data-field="layoutOrder" bindchange="onOption"><view class="choice"><text>{{layouts[layoutIndex].label}}</text><t-icon name="chevron-right" size="28rpx" /></view></picker></view>
+      <view wx:if="{{settings.pagesPerSheet > 1}}" class="row"><text class="label">小页边框</text><switch checked="{{settings.pageBorder}}" disabled="{{busy || replacing}}" color="#087f73" bindchange="onBorder" /></view>
+      <view class="row"><text class="label">奇偶页</text><picker disabled="{{busy || replacing}}" range="{{subsets}}" value="{{subsetIndex}}" data-field="subset" bindchange="onOption"><view class="choice"><text>{{subsets[subsetIndex]}}</text><t-icon name="chevron-right" size="28rpx" /></view></picker></view>
+      <view class="row"><text class="label">倒序出纸</text><switch checked="{{settings.outputOrder === 'reverse'}}" disabled="{{busy || replacing}}" color="#087f73" bindchange="onReverse" /></view>
+      <view class="row"><text class="label">水平镜像</text><switch checked="{{settings.mirror}}" disabled="{{busy || replacing}}" color="#087f73" bindchange="onMirror" /></view>
+      <view wx:if="{{imageDocument}}" class="row"><text class="label">图片反色</text><switch checked="{{settings.invertImages}}" disabled="{{busy || replacing}}" color="#087f73" bindchange="onInvert" /></view>
+      <view class="row"><text class="label">文字水印</text><input class="range" value="{{settings.watermark}}" placeholder="无水印" maxlength="80" disabled="{{busy || replacing}}" bindinput="onWatermark" aria-label="文字水印" /></view>
+    </view>
+    <view wx:if="{{manual}}" class="reload-section">
+      <view class="section-title">翻纸示意</view>
+      <paper-reload />
+    </view>
+    <view class="action-bar">
+      <view wx:if="{{error || previewError}}" class="error action-error" role="alert">
+        <text>{{error || previewError}}</text>
+        <t-button wx:if="{{previewError}}" custom-style="width:72rpx;min-width:0;padding:0;margin:0;" icon="refresh"
+          variant="text" size="small" aria-label="重试预览" disabled="{{preparing || previewBusy || busy || replacing}}" bind:tap="onPreviewRetry" />
+      </view>
+      <view class="action-summary">{{preparing || previewBusy ? '正在更新预览' : plan ? '共 ' + plan.sheetCount + ' 张纸 · ' + plan.settings.copies + ' 份' : '等待有效预览'}}</view>
+      <t-button custom-style="width:100%;margin:0;" theme="primary" icon="print" block
+        loading="{{busy}}" disabled="{{busy || replacing || preparing || previewBusy || !plan || !previewPath}}" bind:tap="onPrint">确认打印</t-button>
+    </view>
+  </block>
+</view>

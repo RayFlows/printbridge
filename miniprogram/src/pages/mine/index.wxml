@@ -1,0 +1,41 @@
+<view class="page tab-page">
+  <view class="title">我的</view>
+  <view wx:if="{{loading}}" class="status"><t-loading theme="circular" text="正在读取账户" /></view>
+  <view wx:if="{{error}}" class="error status" role="alert">{{error}}</view>
+  <t-button wx:if="{{error}}" icon="refresh" variant="outline" bind:tap="onRefresh">重试</t-button>
+  <view wx:if="{{legacy}}" class="status muted">服务端尚未启用微信身份登录，请联系管理员配置。</view>
+  <block wx:if="{{profile}}">
+    <view class="identity">
+      <view class="avatar"><t-icon name="user" size="56rpx" /></view>
+      <view class="identity-copy">
+        <view class="name">{{profile.user.name || '未设置昵称'}}</view>
+        <view class="muted role">{{profile.user.isAdmin ? '打印机管理员' : '打印用户'}}</view>
+      </view>
+    </view>
+    <view class="name-field">
+      <label for="display-name">称谓或昵称（选填）</label>
+      <view class="name-editor">
+        <input id="display-name" class="name-input" type="text" value="{{nameDraft}}" maxlength="40" placeholder="你希望如何被称呼"
+          disabled="{{savingName}}" confirm-type="done" bindinput="onNameInput" bindconfirm="onSaveName" />
+        <t-button custom-style="width:auto;margin:0;flex-shrink:0;" icon="save" variant="outline" theme="primary" size="small"
+          loading="{{savingName}}" disabled="{{savingName || !nameChanged}}" bind:tap="onSaveName">保存</t-button>
+      </view>
+      <view class="hint muted">可随时修改或清空</view>
+      <view wx:if="{{nameError}}" class="error name-error" role="alert">{{nameError}}</view>
+    </view>
+    <view class="row">
+      <view class="row-copy"><view>打印账户编号</view><view class="identifier muted">{{profile.user.id}}</view></view>
+      <t-button custom-style="width:72rpx;min-width:0;margin:0;padding:0;" icon="file-copy" variant="text" aria-label="复制打印账户编号" bind:tap="onCopy" />
+    </view>
+    <view wx:if="{{profile.user.isAdmin}}" class="admin-entry">
+      <t-button icon="secured" block variant="outline" theme="primary" bind:tap="onAdmin">打印管理</t-button>
+    </view>
+  </block>
+  <view class="privacy-section">
+    <button class="privacy-entry" hover-class="privacy-entry-hover" bindtap="onPrivacy">
+      <t-icon name="secured" size="32rpx" />
+      <text class="privacy-label">隐私保护指引</text>
+      <t-icon name="chevron-right" size="30rpx" />
+    </button>
+  </view>
+</view>

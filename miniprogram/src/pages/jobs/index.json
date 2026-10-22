@@ -1,0 +1,9 @@
+{
+  "navigationBarTitleText": "打印任务",
+  "usingComponents": {
+    "paper-reload": "/components/paper-reload/index",
+    "t-button": "tdesign-miniprogram/button/button",
+    "t-icon": "tdesign-miniprogram/icon/icon",
+    "t-loading": "tdesign-miniprogram/loading/loading"
+  }
+}

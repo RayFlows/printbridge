@@ -1,0 +1,20 @@
+.status { margin: 32rpx 0; }
+.identity { display: flex; align-items: center; gap: 24rpx; padding: 40rpx 0; }
+.avatar { color: #087f73; width: 88rpx; height: 88rpx; display: flex; align-items: center; justify-content: center; background: #e0efec; border-radius: 50%; flex-shrink: 0; }
+.identity-copy { min-width: 0; flex: 1; }
+.name { font-size: 34rpx; font-weight: 600; overflow-wrap: anywhere; }
+.role { font-size: 24rpx; margin-top: 8rpx; }
+.name-field { border-bottom: 2rpx solid #e0e5e6; padding: 28rpx 0; }
+.name-editor { display: flex; align-items: center; gap: 16rpx; margin-top: 20rpx; }
+.name-input { flex: 1; min-width: 0; height: 80rpx; padding: 0 16rpx; border: 2rpx solid #ccd6d6; border-radius: 8rpx; background: #ffffff; font-size: 28rpx; }
+.name-error { margin-top: 16rpx; }
+.row { border-bottom: 2rpx solid #e0e5e6; display: flex; align-items: center; gap: 16rpx; padding: 28rpx 0; }
+.row-copy { flex: 1; min-width: 0; }
+.hint { font-size: 24rpx; line-height: 1.6; margin-top: 8rpx; }
+.identifier { font-size: 24rpx; margin-top: 10rpx; overflow-wrap: anywhere; word-break: break-all; }
+.admin-entry { margin-top: 40rpx; }
+.privacy-section { margin-top: 48rpx; border-top: 2rpx solid #e0e5e6; }
+.privacy-entry { display: flex; align-items: center; gap: 16rpx; width: 100%; margin: 0; padding: 28rpx 0; border-radius: 0; background: transparent; color: #6d777b; font-size: 26rpx; line-height: 1.6; text-align: left; }
+.privacy-entry::after { border: 0; }
+.privacy-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.privacy-entry-hover { opacity: 0.65; }

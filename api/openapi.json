@@ -1,0 +1,880 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PrintBridge API",
+    "version": "0.3.0-dev",
+    "description": "Scan authorization, document conversion and previews, immutable print plans, persistent print jobs, cancellation and manual duplex. Upload and preview never submit a print job. Only POST /jobs explicitly authorizes printing."
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Check process liveness",
+        "responses": {
+          "200": {
+            "description": "The HTTP service is responding",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status"],
+                  "properties": {
+                    "status": {"type": "string", "const": "ok"}
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "405": {"$ref": "#/components/responses/MethodNotAllowed"}
+        }
+      },
+      "head": {
+        "operationId": "headHealth",
+        "summary": "Check process liveness without a response body",
+        "responses": {
+          "200": {"description": "The HTTP service is responding"}
+        }
+      }
+    },
+    "/api/v1/server": {
+      "get": {
+        "operationId": "getServerInfo",
+        "summary": "Read server and API versions",
+        "responses": {
+          "200": {
+            "description": "Server metadata",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ServerInfo"}
+              }
+            }
+          },
+          "405": {"$ref": "#/components/responses/MethodNotAllowed"}
+        }
+      },
+      "head": {
+        "operationId": "headServerInfo",
+        "summary": "Check the metadata endpoint without a response body",
+        "responses": {
+          "200": {"description": "The metadata endpoint is responding"}
+        }
+      }
+    },
+    "/api/v1/sessions": {
+      "post": {
+        "operationId": "createSession",
+        "summary": "Exchange a print-entry code and optional WeChat login code for a session",
+        "description": "When ServerInfo.loginMode=wechat, loginCode from wx.login is mandatory and verified server-side with code2Session. Never submit OpenID or role from the client. Session hashes, stable user IDs and expiration persist; same AppID/OpenID retains ownership across new sessions and restarts. Without configured WeChat credentials, legacy anonymous sessions retain their original token-hash ownership. QR code-only access cannot bypass configured WeChat login. Existing anonymous tasks are not automatically claimed. Body limit: 4096 bytes. At most 10 attempts per minute per server and 128 active sessions. Changing the pairing code invalidates stored sessions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["pairingCode"],
+                "properties": {
+                  "pairingCode": {"type": "string", "minLength": 1, "maxLength": 128, "writeOnly": true},
+                  "loginCode": {"type": "string", "maxLength": 512, "writeOnly": true, "description": "One-use wx.login code; required in WeChat mode"}
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Session created; token is returned only here",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Session"}}}
+          },
+          "400": {"$ref": "#/components/responses/InvalidRequest"},
+          "401": {
+            "description": "error.code=invalid_pairing_code, wechat_login_required or wechat_login_failed",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "403": {"$ref": "#/components/responses/AccessDenied"},
+          "405": {"$ref": "#/components/responses/MethodNotAllowed"},
+          "415": {
+            "description": "error.code=invalid_content_type; use application/json",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "429": {
+            "description": "error.code=pairing_rate_limited",
+            "headers": {"Retry-After": {"schema": {"type": "string", "const": "60"}}},
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "500": {
+            "description": "error.code=internal_error; session could not be created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "503": {
+            "description": "error.code=pairing_disabled, session_capacity or wechat_unavailable",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "operationId": "getProfile", "summary": "Read the current verified user and print admission setting",
+        "description": "Account endpoints exist only in WeChat mode. All authenticated endpoints reject banned users with 403 user_banned, including previously issued sessions.",
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "200": {"description": "Current account", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Profile"}}}},
+          "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"},
+          "500": {"$ref": "#/components/responses/AccountFailure"}
+        }
+      },
+      "head": {"operationId": "headProfile", "security": [{"sessionToken": []}], "responses": {"200": {"description": "Profile available, no body"}, "401": {"$ref": "#/components/responses/SessionExpired"}, "403": {"$ref": "#/components/responses/AccessDenied"}}},
+      "post": {
+        "operationId": "saveName", "summary": "Save or clear a voluntarily supplied name and acknowledge the first prompt",
+        "description": "Empty name is allowed and records the decision to skip. Name is not verified real-world identity. Client cannot change role, ban or external identity.",
+        "security": [{"sessionToken": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {
+          "type": "object", "required": ["name"], "additionalProperties": false,
+          "properties": {"name": {"type": "string", "maxLength": 40, "description": "Trimmed; control characters rejected"}}
+        }}}},
+        "responses": {
+          "200": {"description": "Saved profile", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Profile"}}}},
+          "400": {"$ref": "#/components/responses/InvalidRequest"},
+          "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"},
+          "415": {"$ref": "#/components/responses/InvalidRequest"},
+          "500": {"$ref": "#/components/responses/AccountFailure"}
+        }
+      }
+    },
+    "/api/v1/admin/users": {
+      "get": {
+        "operationId": "listUsers", "summary": "Administrator: list users of this WeChat application",
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "200": {"description": "User list without OpenID", "content": {"application/json": {"schema": {
+            "type": "object", "required": ["users"], "additionalProperties": false,
+            "properties": {"users": {"type": "array", "items": {"$ref": "#/components/schemas/User"}}}
+          }}}},
+          "401": {"$ref": "#/components/responses/SessionExpired"}, "403": {"$ref": "#/components/responses/AccessDenied"},
+          "500": {"$ref": "#/components/responses/AccountFailure"}
+        }
+      },
+      "head": {"operationId": "headUsers", "security": [{"sessionToken": []}], "responses": {"200": {"description": "User list available, no body"}, "401": {"$ref": "#/components/responses/SessionExpired"}, "403": {"$ref": "#/components/responses/AccessDenied"}}}
+    },
+    "/api/v1/admin/users/{id}/ban": {
+      "parameters": [{"$ref": "#/components/parameters/DocumentID"}],
+      "post": {
+        "operationId": "setUserBan", "summary": "Administrator: ban or restore a user",
+        "description": "The configured administrator cannot be banned. Ban denies existing/new sessions without altering physical jobs; cancel an existing task separately if needed.",
+        "security": [{"sessionToken": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {
+          "type": "object", "required": ["banned"], "additionalProperties": false, "properties": {"banned": {"type": "boolean"}}
+        }}}},
+        "responses": {
+          "200": {"description": "Updated user", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/User"}}}},
+          "400": {"$ref": "#/components/responses/InvalidRequest"}, "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"},
+          "404": {"description": "user_not_found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "500": {"$ref": "#/components/responses/AccountFailure"}
+        }
+      }
+    },
+    "/api/v1/admin/settings": {
+      "get": {
+        "operationId": "getAdminSettings", "summary": "Administrator: read print admission configuration",
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "200": {"description": "Current settings", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountSettings"}}}},
+          "401": {"$ref": "#/components/responses/SessionExpired"}, "403": {"$ref": "#/components/responses/AccessDenied"},
+          "500": {"$ref": "#/components/responses/AccountFailure"}
+        }
+      },
+      "head": {"operationId": "headAdminSettings", "security": [{"sessionToken": []}], "responses": {"200": {"description": "Settings available, no body"}, "401": {"$ref": "#/components/responses/SessionExpired"}, "403": {"$ref": "#/components/responses/AccessDenied"}}},
+      "post": {
+        "operationId": "setPrintAdmission", "summary": "Administrator: enable or pause new print plans and submissions",
+        "description": "Existing tasks may finish, continue or be cancelled. Idempotent retries still return their existing job. Does not change CUPS queue configuration or electrical power settings.",
+        "security": [{"sessionToken": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountSettings"}}}},
+        "responses": {
+          "200": {"description": "Saved settings", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountSettings"}}}},
+          "400": {"$ref": "#/components/responses/InvalidRequest"}, "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"}, "500": {"$ref": "#/components/responses/AccountFailure"}
+        }
+      }
+    },
+    "/api/v1/admin/dashboard": {
+      "get": {
+        "operationId": "getAdminDashboard", "summary": "Administrator: printer state and unfinished tasks",
+        "description": "Tasks omit original document names, content and print settings. Legacy tasks remain visible here without reassignment. CUPS failure returns printerStatusAvailable=false and an empty printers array; user/task management and service settings remain available.",
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "200": {"description": "Management overview", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AdminDashboard"}}}},
+          "401": {"$ref": "#/components/responses/SessionExpired"}, "403": {"$ref": "#/components/responses/AccessDenied"},
+          "500": {"$ref": "#/components/responses/AccountFailure"}
+        }
+      },
+      "head": {"operationId": "headAdminDashboard", "security": [{"sessionToken": []}], "responses": {"200": {"description": "Dashboard available, no body"}, "401": {"$ref": "#/components/responses/SessionExpired"}, "403": {"$ref": "#/components/responses/AccessDenied"}}}
+    },
+    "/api/v1/admin/jobs/{id}/cancel": {
+      "parameters": [{"$ref": "#/components/parameters/DocumentID"}],
+      "post": {
+        "operationId": "cancelAdminTask", "summary": "Administrator: cancel an unfinished task using its original owner",
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "200": {"description": "Cancellation requested; physical output is not recalled", "content": {"application/json": {"schema": {
+            "type": "object", "required": ["id", "state"], "additionalProperties": false,
+            "properties": {"id": {"$ref": "#/components/schemas/RecordID"}, "state": {"type": "string"}}
+          }}}},
+          "401": {"$ref": "#/components/responses/SessionExpired"}, "403": {"$ref": "#/components/responses/AccessDenied"},
+          "404": {"$ref": "#/components/responses/PrintFailure"}, "409": {"$ref": "#/components/responses/PrintFailure"},
+          "500": {"$ref": "#/components/responses/PrintFailure"}
+        }
+      }
+    },
+    "/api/v1/admin/jobs/{id}/confirm-cancel": {
+      "parameters": [{"$ref": "#/components/parameters/DocumentID"}],
+      "post": {
+        "operationId": "confirmAdminCancellation", "summary": "Administrator: confirm the printer was stopped after cancellation",
+        "description": "Legacy operation for deployments without automatic device cancellation. Uses the original owner and the same checks as user confirmation. Configured automatic verification cannot be bypassed. Returns no document information.",
+        "deprecated": true,
+        "security": [{"sessionToken": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DeviceStoppedConfirmation"}}}},
+        "responses": {
+          "200": {"description": "Cancellation confirmed or task already terminal", "content": {"application/json": {"schema": {
+            "type": "object", "required": ["id", "state"], "additionalProperties": false,
+            "properties": {"id": {"$ref": "#/components/schemas/RecordID"}, "state": {"type": "string"}}
+          }}}},
+          "400": {"$ref": "#/components/responses/PrintFailure"}, "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"}, "404": {"$ref": "#/components/responses/PrintFailure"},
+          "409": {"$ref": "#/components/responses/PrintFailure"}, "415": {"$ref": "#/components/responses/PrintFailure"},
+          "503": {"$ref": "#/components/responses/PrintFailure"}, "500": {"$ref": "#/components/responses/PrintFailure"}
+        }
+      }
+    },
+    "/api/v1/session": {
+      "delete": {
+        "operationId": "revokeSession",
+        "summary": "Revoke the current session",
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "204": {"description": "Session revoked, no response body"},
+          "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"},
+          "405": {"$ref": "#/components/responses/MethodNotAllowed"},
+          "500": {"description": "Session persistence failure; revocation is not confirmed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      }
+    },
+    "/api/v1/documents": {
+      "post": {
+        "operationId": "uploadDocument",
+        "summary": "Upload and prepare a document or image without printing",
+        "description": "Synchronous conversion to PDF. Supported extensions: pdf, doc, docx, xls, xlsx, ppt, pptx, odt, ods, odp, rtf, txt, csv, jpg, jpeg, png, webp, bmp, tif, tiff, gif (first frame). Maximum input 20971520 bytes; prepared PDF 128 MiB / 500 pages. Multipart body limit 21037056 bytes. Office conversion uses an isolated LibreOffice profile, default timeout 2 minutes (configurable up to 5 minutes). PDF tools default to 30 seconds (maximum 60 seconds). One active document operation. Default retention 24 hours, maximum 168 hours; 64 documents and 512 MiB document storage. Owner is the stable verified user ID in WeChat mode, or bearer-token SHA-256 in legacy anonymous mode. Retrying an upload may create another document but never a print job. Conversion compatibility and font fidelity depend on the installed converter and fonts.",
+        "security": [{"sessionToken": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {"type": "string", "format": "binary", "description": "Exactly one document or image"},
+                  "name": {"type": "string", "description": "Optional original display name; at most 720 UTF-8 bytes. Sanitized to a basename of at most 180 Unicode characters. Never used as a storage path."}
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Document converted, inspected and metadata persisted; no print job created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Document"}}}
+          },
+          "400": {"$ref": "#/components/responses/InvalidRequest"},
+          "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"},
+          "405": {"$ref": "#/components/responses/MethodNotAllowed"},
+          "413": {"description": "error.code=document_too_large", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "415": {"description": "error.code=unsupported_format", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "422": {"description": "error.code=invalid_pdf, conversion_failed or too_many_pages", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "500": {"$ref": "#/components/responses/DocumentFailure"},
+          "503": {"$ref": "#/components/responses/DocumentUnavailable"},
+          "504": {"$ref": "#/components/responses/DocumentTimeout"},
+          "507": {"$ref": "#/components/responses/DocumentStorageFull"}
+        }
+      }
+    },
+    "/api/v1/documents/{id}": {
+      "parameters": [{"$ref": "#/components/parameters/DocumentID"}],
+      "get": {
+        "operationId": "getDocument",
+        "summary": "Read the authenticated owner's document metadata",
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "200": {"description": "Document metadata", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Document"}}}},
+          "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"},
+          "404": {"$ref": "#/components/responses/DocumentNotFound"},
+          "405": {"$ref": "#/components/responses/MethodNotAllowed"},
+          "500": {"$ref": "#/components/responses/DocumentFailure"}
+        }
+      },
+      "head": {
+        "operationId": "headDocument",
+        "summary": "Check document access without a response body",
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "200": {"description": "Document available"},
+          "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"},
+          "404": {"$ref": "#/components/responses/DocumentNotFound"},
+          "500": {"$ref": "#/components/responses/DocumentFailure"}
+        }
+      }
+    },
+    "/api/v1/documents/{id}/pages/{page}": {
+      "parameters": [
+        {"$ref": "#/components/parameters/DocumentID"},
+        {"name": "page", "in": "path", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 500}, "description": "One-based document page, no larger than pageCount"}
+      ],
+      "get": {
+        "operationId": "getDocumentPage",
+        "summary": "Download an authenticated PNG preview of one page",
+        "description": "Generated on demand and cached on the server. Longest edge at most 1600 pixels; response at most 12 MiB. Authorization and ownership are checked on cache hits. Cache-Control: no-store. Token is accepted only in Authorization, never in a URL. This preview preserves source layout; print settings are previewed through /plans/{id}/pages/{page}.",
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "200": {"description": "PNG page preview", "content": {"image/png": {"schema": {"type": "string", "format": "binary"}}}},
+          "400": {"description": "error.code=invalid_page", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"},
+          "404": {"$ref": "#/components/responses/DocumentNotFound"},
+          "405": {"$ref": "#/components/responses/MethodNotAllowed"},
+          "422": {"description": "error.code=preview_failed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "500": {"$ref": "#/components/responses/DocumentFailure"},
+          "503": {"$ref": "#/components/responses/DocumentUnavailable"},
+          "504": {"$ref": "#/components/responses/DocumentTimeout"},
+          "507": {"$ref": "#/components/responses/DocumentStorageFull"}
+        }
+      },
+      "head": {
+        "operationId": "headDocumentPage",
+        "summary": "Generate or check a page preview without returning its body",
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "200": {"description": "PNG available; Content-Length is the PNG length"},
+          "400": {"description": "Invalid page"},
+          "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"},
+          "404": {"$ref": "#/components/responses/DocumentNotFound"},
+          "422": {"description": "Page render failed"},
+          "500": {"$ref": "#/components/responses/DocumentFailure"},
+          "503": {"$ref": "#/components/responses/DocumentUnavailable"},
+          "504": {"$ref": "#/components/responses/DocumentTimeout"},
+          "507": {"$ref": "#/components/responses/DocumentStorageFull"}
+        }
+      }
+    },
+    "/api/v1/plans": {
+      "post": {
+        "operationId": "preparePrintPlan",
+        "summary": "Prepare an immutable layout for preview and printing",
+        "description": "Reads printer capabilities but never submits a CUPS job. Applies page ranges, odd/even and legacy page reversal once, then orientation, N-up and scale. Duplex pads a blank final face when required. outputOrder reorders complete sheets while preserving front/back pairs and cells. Input JSON limit 16 KiB. Maximum 64 plans, retained for at most 24 hours and eligible for earlier cleanup after terminal jobs; print files share a 2 GiB budget, checked between operations. Output at most 128 MiB. Concurrent preparation returns print_busy. replacesPlanId optionally reuses an identical unexpired plan, or retires that session's unsubmitted plan for the same document only after successful preparation. Plans referenced by active jobs are not replaced; independent phase PDFs allow those jobs to continue after plan expiry. Missing predecessors are tolerated for network retries; other owners/documents are rejected. Replacement and insertion are atomic; source documents and existing jobs are unchanged by preview preparation.",
+        "security": [{"sessionToken": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {
+            "type": "object", "required": ["documentId", "settings"], "additionalProperties": false,
+            "properties": {"documentId": {"$ref": "#/components/schemas/RecordID"}, "settings": {"$ref": "#/components/schemas/PrintSettings"}, "replacesPlanId": {"$ref": "#/components/schemas/RecordID"}}
+          }}}
+        },
+        "responses": {
+          "201": {"description": "Prepared layout", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PrintPlan"}}}},
+          "400": {"$ref": "#/components/responses/PrintFailure"},
+          "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"},
+          "404": {"$ref": "#/components/responses/DocumentNotFound"},
+          "405": {"$ref": "#/components/responses/MethodNotAllowed"},
+          "409": {"$ref": "#/components/responses/PrintFailure"},
+          "415": {"$ref": "#/components/responses/PrintFailure"},
+          "422": {"$ref": "#/components/responses/PrintFailure"},
+          "500": {"$ref": "#/components/responses/DocumentFailure"},
+          "503": {"$ref": "#/components/responses/PrintFailure"},
+          "504": {"$ref": "#/components/responses/DocumentTimeout"},
+          "507": {"$ref": "#/components/responses/PrintFailure"}
+        }
+      }
+    },
+    "/api/v1/plans/{id}": {
+      "parameters": [{"$ref": "#/components/parameters/DocumentID"}],
+      "get": {
+        "operationId": "getPrintPlan", "summary": "Read a plan owned by the authenticated user or legacy session",
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "200": {"description": "Immutable layout metadata", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PrintPlan"}}}},
+          "401": {"$ref": "#/components/responses/SessionExpired"}, "403": {"$ref": "#/components/responses/AccessDenied"}, "404": {"$ref": "#/components/responses/PrintFailure"},
+          "405": {"$ref": "#/components/responses/MethodNotAllowed"}, "500": {"$ref": "#/components/responses/DocumentFailure"}
+        }
+      },
+      "head": {
+        "operationId": "headPrintPlan", "security": [{"sessionToken": []}],
+        "responses": {"200": {"description": "Plan accessible"}, "401": {"$ref": "#/components/responses/SessionExpired"}, "403": {"$ref": "#/components/responses/AccessDenied"}, "404": {"$ref": "#/components/responses/PrintFailure"}, "500": {"$ref": "#/components/responses/DocumentFailure"}}
+      }
+    },
+    "/api/v1/plans/{id}/pages/{page}": {
+      "parameters": [
+        {"$ref": "#/components/parameters/DocumentID"},
+        {"name": "page", "in": "path", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 500}},
+        {"name": "order", "in": "query", "schema": {"type": "string", "enum": ["print", "reading"], "default": "print"}, "description": "reading follows selected/layout pages before outputOrder, excluding only software-added duplex padding; print retains the physical layout order"}
+      ],
+      "get": {
+        "operationId": "getPrintPlanPage", "summary": "Preview a prepared face in print or reading order",
+        "description": "Uses the exact layout PDF used by job preparation. Monochrome and auto-monochrome settings render a grayscale PNG; color, auto and unspecified modes retain source color. Preview grayscale does not rewrite the immutable PDF or replace CUPS print-color-mode handling. Omitted order or print preserves physical face indexes including duplex padding, up to pageCount. With order=reading the server maps indexes into that PDF before outputOrder and hides added padding, up to previewPageCount. Original blank pages and blank cells remain. Both are before copy expansion and second-pass rotation. PNG limit 12 MiB / 1600 pixels; no print submission.",
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "200": {"description": "PNG face preview", "content": {"image/png": {"schema": {"type": "string", "format": "binary"}}}},
+          "400": {"$ref": "#/components/responses/PrintFailure"}, "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"},
+          "404": {"$ref": "#/components/responses/PrintFailure"}, "405": {"$ref": "#/components/responses/MethodNotAllowed"},
+          "422": {"$ref": "#/components/responses/PrintFailure"}, "500": {"$ref": "#/components/responses/DocumentFailure"},
+          "503": {"$ref": "#/components/responses/PrintFailure"}, "504": {"$ref": "#/components/responses/DocumentTimeout"}, "507": {"$ref": "#/components/responses/PrintFailure"}
+        }
+      },
+      "head": {
+        "operationId": "headPrintPlanPage", "security": [{"sessionToken": []}],
+        "responses": {"200": {"description": "PNG accessible; no response body"}, "403": {"$ref": "#/components/responses/AccessDenied"}, "default": {"$ref": "#/components/responses/PrintFailure"}}
+      }
+    },
+    "/api/v1/jobs": {
+      "get": {
+        "operationId": "listPrintJobs", "summary": "List this authenticated owner's jobs, newest first",
+        "description": "The mini-program uses active=true to resume unfinished tasks on each printer. Omitting the filter preserves the existing short-lived task-list contract.",
+        "parameters": [{"name": "active", "in": "query", "schema": {"type": "boolean"}, "description": "When true, exclude completed, canceled and failed tasks. Default false."}],
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "200": {"description": "Task history", "content": {"application/json": {"schema": {
+            "type": "object", "required": ["jobs"], "properties": {"jobs": {"type": "array", "items": {"$ref": "#/components/schemas/PrintJob"}}}, "additionalProperties": false
+          }}}},
+          "400": {"$ref": "#/components/responses/PrintFailure"}, "401": {"$ref": "#/components/responses/SessionExpired"}, "403": {"$ref": "#/components/responses/AccessDenied"}, "500": {"$ref": "#/components/responses/DocumentFailure"}
+        }
+      },
+      "head": {
+        "operationId": "headPrintJobs", "security": [{"sessionToken": []}],
+        "parameters": [{"name": "active", "in": "query", "schema": {"type": "boolean"}, "description": "Same filter and validation as GET."}],
+        "responses": {"200": {"description": "Task list accessible"}, "403": {"$ref": "#/components/responses/AccessDenied"}, "default": {"$ref": "#/components/responses/PrintFailure"}}
+      },
+      "post": {
+        "operationId": "createPrintJob", "summary": "Explicitly authorize and enqueue printing of a prepared plan",
+        "description": "This endpoint causes printing. Persist the idempotency key before the request and reuse it after a timeout. Same owner/key/plan returns the original task even after file cleanup; same owner/key with a different plan returns 409. One unfinished task per session and printer; a different submission while it exists returns 409 active_print_exists. Up to 32 active jobs across sessions/printers; each phase PDF limited to 256 MiB. Terminal source, preview, plan and phase files are collected on the next successful cleanup (normally every minute); terminal metadata and keys are retained for 3 days. Unsubmitted documents and plans expire after 24 hours by default. Tasks older than 3 days enter cancellation before further submission; files of uncertain cancellations remain pending CUPS reconciliation. CUPS spool retention is independently configured. Plan must be unexpired for a new job. Uses held CUPS jobs, persists IDs before sending, and reconciles uncertainty without resubmitting documents. PrintBridge serializes its own tasks on each printer, including waiting for paper; external CUPS jobs are not locked.",
+        "security": [{"sessionToken": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {
+          "type": "object", "required": ["planId", "idempotencyKey"], "additionalProperties": false,
+          "properties": {"planId": {"$ref": "#/components/schemas/RecordID"}, "idempotencyKey": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}}
+        }}}},
+        "responses": {
+          "201": {"description": "Queued or previous task; not a physical completion signal", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PrintJob"}}}},
+          "400": {"$ref": "#/components/responses/PrintFailure"}, "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"},
+          "404": {"$ref": "#/components/responses/PrintFailure"}, "405": {"$ref": "#/components/responses/MethodNotAllowed"},
+          "409": {"$ref": "#/components/responses/PrintFailure"}, "415": {"$ref": "#/components/responses/PrintFailure"},
+          "500": {"$ref": "#/components/responses/DocumentFailure"}, "503": {"$ref": "#/components/responses/PrintFailure"},
+          "504": {"$ref": "#/components/responses/DocumentTimeout"}, "507": {"$ref": "#/components/responses/PrintFailure"}
+        }
+      }
+    },
+    "/api/v1/jobs/{id}": {
+      "parameters": [{"$ref": "#/components/parameters/DocumentID"}],
+      "get": {
+        "operationId": "getPrintJob", "summary": "Read persisted task state",
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "200": {"description": "Job state; completed means CUPS reported completion", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PrintJob"}}}},
+          "401": {"$ref": "#/components/responses/SessionExpired"}, "403": {"$ref": "#/components/responses/AccessDenied"}, "404": {"$ref": "#/components/responses/PrintFailure"},
+          "405": {"$ref": "#/components/responses/MethodNotAllowed"}, "500": {"$ref": "#/components/responses/DocumentFailure"}
+        }
+      },
+      "head": {
+        "operationId": "headPrintJob", "security": [{"sessionToken": []}],
+        "responses": {"200": {"description": "Job accessible"}, "403": {"$ref": "#/components/responses/AccessDenied"}, "default": {"$ref": "#/components/responses/PrintFailure"}}
+      }
+    },
+    "/api/v1/jobs/{id}/continue": {
+      "parameters": [{"$ref": "#/components/parameters/DocumentID"}],
+      "post": {
+        "operationId": "continueManualDuplex",
+        "summary": "Confirm all first-pass sheets have emerged and have been reloaded",
+        "description": "Requires awaiting_flip and paperConfirmed=true; tasks older than 3 days cannot continue and enter cancellation. The saved manualFirstSide determines the first and second phases. Repeated confirmation while the second phase is active returns that task without creating another phase. Does not infer physical readiness from CUPS completion. This action starts the other side, and is not a paper-out or printer-panel recovery command.",
+        "security": [{"sessionToken": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {
+          "type": "object", "required": ["paperConfirmed"], "properties": {"paperConfirmed": {"type": "boolean", "const": true}}, "additionalProperties": false
+        }}}},
+        "responses": {
+          "200": {"description": "Second phase queued or already active", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PrintJob"}}}},
+          "400": {"$ref": "#/components/responses/PrintFailure"}, "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"},
+          "404": {"$ref": "#/components/responses/PrintFailure"}, "405": {"$ref": "#/components/responses/MethodNotAllowed"},
+          "409": {"$ref": "#/components/responses/PrintFailure"}, "415": {"$ref": "#/components/responses/PrintFailure"},
+          "500": {"$ref": "#/components/responses/DocumentFailure"}
+        }
+      }
+    },
+    "/api/v1/jobs/{id}/cancel": {
+      "parameters": [{"$ref": "#/components/parameters/DocumentID"}],
+      "post": {
+        "operationId": "cancelPrintJob", "summary": "Request cancellation; already printed sheets cannot be recalled",
+        "description": "Queued jobs and tasks awaiting a flip cancel locally. Submitted jobs remain canceling until the matching CUPS job is terminal and the printer is idle. When a device cancellation helper is configured, potentially transmitted data is cleared automatically and fresh idle device reports are required before releasing the lock. A failed or unsupported device cancellation remains active and is retried; client assertions cannot bypass verification. Without a helper, the legacy confirm-cancel API remains available for existing deployments, but the current client does not expose physical-stop confirmation. CUPS cancellation alone does not flush device buffers. Unknown submissions remain uncertain until reconciled. Repeated requests are safe. External CUPS clients are not blocked.",
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "200": {"description": "Cancellation requested or task already terminal", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PrintJob"}}}},
+          "401": {"$ref": "#/components/responses/SessionExpired"}, "403": {"$ref": "#/components/responses/AccessDenied"}, "404": {"$ref": "#/components/responses/PrintFailure"},
+          "405": {"$ref": "#/components/responses/MethodNotAllowed"}, "500": {"$ref": "#/components/responses/DocumentFailure"}
+        }
+      }
+    },
+    "/api/v1/jobs/{id}/confirm-cancel": {
+      "parameters": [{"$ref": "#/components/parameters/DocumentID"}],
+      "post": {
+        "operationId": "confirmPrintCancellation", "summary": "Confirm the printer Stop button was used to clear old output",
+        "description": "Legacy operation retained for deployments without automatic device cancellation. Requires canceling with deviceCancelRequired=true, a matching terminal CUPS job, an idle queue, and deviceStopped=true. A configured device helper rejects this operation for nonterminal tasks so a client assertion cannot bypass hardware verification. Terminal tasks return unchanged. The current client does not expose this legacy confirmation.",
+        "deprecated": true,
+        "security": [{"sessionToken": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DeviceStoppedConfirmation"}}}},
+        "responses": {
+          "200": {"description": "Cancellation confirmed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PrintJob"}}}},
+          "400": {"$ref": "#/components/responses/PrintFailure"}, "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"}, "404": {"$ref": "#/components/responses/PrintFailure"},
+          "409": {"$ref": "#/components/responses/PrintFailure"}, "415": {"$ref": "#/components/responses/PrintFailure"},
+          "503": {"$ref": "#/components/responses/PrintFailure"}, "500": {"$ref": "#/components/responses/PrintFailure"}
+        }
+      }
+    },
+    "/api/v1/printers": {
+      "get": {
+        "operationId": "listPrinters",
+        "summary": "List CUPS printer queues and reported capabilities",
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "200": {
+            "description": "Printer list; empty arrays/null represent capabilities not reported by CUPS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["printers"],
+                  "properties": {"printers": {"type": "array", "items": {"$ref": "#/components/schemas/Printer"}}},
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {"$ref": "#/components/responses/SessionExpired"},
+          "403": {"$ref": "#/components/responses/AccessDenied"},
+          "405": {"$ref": "#/components/responses/MethodNotAllowed"},
+          "503": {"$ref": "#/components/responses/CUPSUnavailable"}
+        }
+      },
+      "head": {
+        "operationId": "headPrinters",
+        "summary": "Check authorization and CUPS reachability without a response body",
+        "security": [{"sessionToken": []}],
+        "responses": {
+          "200": {"description": "Printer list available"},
+          "401": {"description": "Session missing, revoked or expired; WWW-Authenticate: Bearer"},
+          "403": {"$ref": "#/components/responses/AccessDenied"},
+          "503": {"description": "CUPS information unavailable"}
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "DocumentID": {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "pattern": "^[a-f0-9]{32}$"}}
+    },
+    "securitySchemes": {
+      "sessionToken": {"type": "http", "scheme": "bearer", "description": "Opaque token from createSession, sent only in Authorization"}
+    },
+    "schemas": {
+      "RecordID": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+      "PrintSettings": {
+        "type": "object", "additionalProperties": false,
+        "required": ["printerId", "copies", "subset", "orientation", "pagesPerSheet", "scalePercent", "sides"],
+        "properties": {
+          "printerId": {"type": "string", "minLength": 1},
+          "media": {"type": "string", "description": "Reported media keyword; an empty value uses A4 layout with the CUPS default media"},
+          "mediaType": {"type": "string", "default": "", "description": "Exact reported media-type keyword; empty keeps the queue default"},
+          "mediaSource": {"type": "string", "default": "", "description": "Exact reported media-source keyword; empty keeps the queue default"},
+          "colorMode": {"type": "string", "description": "Reported color mode, or empty for the CUPS default"},
+          "copies": {"type": "integer", "minimum": 1, "maximum": 99},
+          "pages": {"type": "string", "maxLength": 2048, "description": "Comma-separated one-based ranges such as 1-5,8; empty selects all. Duplicate pages removed preserving first occurrence"},
+          "subset": {"type": "string", "enum": ["all", "odd", "even"], "description": "Refers to original document page numbers"},
+          "reverse": {"type": "boolean", "default": false, "description": "Legacy reversal of selected original pages before imposition. Preserved for existing clients; new clients should use outputOrder to reverse physical sheets without swapping duplex sides"},
+          "outputOrder": {"type": "string", "enum": ["", "normal", "reverse"], "default": "", "description": "Order complete imposed sheets after duplex blank padding. Empty preserves the legacy order. reverse retains front/back pairing and within-face reading order; the mini-program defaults new settings to reverse. Independent of calibrated backOrder"},
+          "orientation": {"type": "string", "enum": ["portrait", "landscape"]},
+          "pagesPerSheet": {"type": "integer", "enum": [1, 2, 4, 6, 9, 16], "description": "Pages per output face"},
+          "scalePercent": {"type": "integer", "minimum": 10, "maximum": 400, "description": "With custom scaling, percentage of original page size per cell. With absent/empty scaling, preserves the legacy percentage of the fit-to-paper sheet"},
+          "scaling": {"type": "string", "enum": ["", "fit", "shrink", "fill", "actual", "custom"], "default": "", "description": "Empty preserves legacy layout. fit uses 5mm cell margins; shrink never enlarges; actual preserves original size; fill covers the cell and crops; custom uses scalePercent. Each cell clips excess content before imposition"},
+          "layoutOrder": {"type": "string", "enum": ["", "lrtb", "rltb", "tblr", "tbrl"], "default": "", "description": "N-up cell traversal; empty is lrtb. Does not apply page filtering again"},
+          "pageBorder": {"type": "boolean", "default": false, "description": "Draw a border around each imposed cell"},
+          "mirror": {"type": "boolean", "default": false, "description": "Reflect the final composed face horizontally, including watermark, before duplex padding and phase rotation"},
+          "watermark": {"type": "string", "maxLength": 80, "default": "", "description": "Single line text; control characters rejected. Trimmed blank means no stamp. Centered diagonal gray overlay per non-padding face; CJK supported with a configured/installed font. Missing glyphs return 422 watermark_font_unavailable. Reflected with mirror"},
+          "invertImages": {"type": "boolean", "default": false, "description": "Invert colors of source image pages before scaling/imposition. Available only for uploaded image formats, including multi-page TIFF; PDF and Office rejected. Margins and duplex padding remain white"},
+          "sides": {"type": "string", "enum": ["one-sided", "two-sided-long-edge", "two-sided-short-edge", "manual-long-edge", "manual-short-edge"]},
+          "manualFirstSide": {"type": "string", "enum": ["", "front", "back"], "default": "", "description": "First pass for manual duplex: front selects odd imposed faces, back selects even imposed faces including padding. Empty/absent preserves legacy front-first jobs. New mini-program settings default to back. Ignored for simplex and automatic duplex"},
+          "manualDuplexProfile": {"type": "string", "enum": ["", "rear-face-up-v1"], "default": "", "description": "Opt in to the profile advertised for this queue. Mismatched/unconfigured profiles are rejected. For manual duplex the server resolves manualFirstSide=back, backOrder=same, calibrated=true and backRotation=0 (portrait) or 180 (landscape), then persists them in the plan/job. Reload always uses the physical long edge, the original leading short edge first and the blank face toward the user in the rear tray. Short-edge binding adds 180 degrees in software. Cleared for simplex/automatic duplex. Absent preserves legacy explicit calibration; this is configured handling, not a claim of physical validation"},
+          "backOrder": {"type": "string", "enum": ["", "same", "reverse"], "description": "Must be same or reverse for manual duplex; reverse reverses the whole expanded SECOND pass including copies, relative to the first pass. With legacy front-first settings this remains the back sequence"},
+          "backRotation": {"type": "integer", "enum": [0, 180], "default": 0, "description": "Additional SECOND-pass rotation from calibration; manual short-edge adds another 180 degrees. With legacy front-first settings this still applies to back faces"},
+          "calibrated": {"type": "boolean", "default": false, "description": "Legacy manual clients must explicitly set true. When manualDuplexProfile is supplied, the server resolves this from deployment configuration. Neither path is an automatic hardware measurement"}
+        }
+      },
+      "PrintPlan": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "documentId", "name", "settings", "selectedPages", "pageCount", "sheetCount", "sheets", "createdAt", "expiresAt"],
+        "properties": {
+          "id": {"$ref": "#/components/schemas/RecordID"}, "documentId": {"$ref": "#/components/schemas/RecordID"},
+          "name": {"type": "string"}, "settings": {"$ref": "#/components/schemas/PrintSettings"},
+          "selectedPages": {"type": "array", "items": {"type": "integer", "minimum": 1, "maximum": 500}},
+          "pageCount": {"type": "integer", "minimum": 1, "maximum": 500, "description": "Layout faces per copy including blank padding"},
+          "previewPageCount": {"type": "integer", "minimum": 1, "maximum": 500, "description": "Reading-order faces before copy expansion, excluding software-added duplex padding. Derived for persisted plans created before this optional field was introduced."},
+          "sheetCount": {"type": "integer", "minimum": 1, "maximum": 2000, "description": "Paper sheets across all copies"},
+          "sheets": {"type": "array", "items": {
+            "type": "object", "required": ["front", "back"], "additionalProperties": false,
+            "properties": {
+              "front": {"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 500}},
+              "back": {"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 500}}
+            },
+            "description": "Original page numbers per sheet for one copy, in outputOrder. Zero is a blank cell; empty back means simplex"
+          }},
+          "createdAt": {"type": "string", "format": "date-time"}, "expiresAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "DeviceStoppedConfirmation": {
+        "type": "object", "additionalProperties": false, "required": ["deviceStopped"],
+        "properties": {"deviceStopped": {"type": "boolean", "const": true}}
+      },
+      "PrintJob": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "planId", "name", "settings", "sheetCount", "state", "phase", "cupsJobId", "cupsJobIds", "problem", "createdAt", "updatedAt"],
+        "properties": {
+          "id": {"$ref": "#/components/schemas/RecordID"}, "planId": {"$ref": "#/components/schemas/RecordID"},
+          "name": {"type": "string"}, "settings": {"$ref": "#/components/schemas/PrintSettings"},
+          "sheetCount": {"type": "integer", "minimum": 1},
+          "state": {"type": "string", "enum": ["queued", "creating", "created", "sending", "releasing", "printing", "awaiting_flip", "canceling", "completed", "canceled", "failed"]},
+          "phase": {"type": "string", "enum": ["single", "front", "back"], "description": "Logical imposed face, not pass number: front is odd faces and back is even faces. manualFirstSide determines which prints first"},
+          "cupsJobId": {"type": "integer", "minimum": 0, "description": "Current phase job ID; zero when unknown or not submitted"},
+          "cupsJobState": {"type": "integer", "minimum": 0, "maximum": 9, "description": "Last verified IPP state of this job (3 pending, 4 held, 5 processing, 6 stopped, 7 canceled, 8 aborted, 9 completed). Zero means not yet observed or invalidated after release. Older servers omit it. Printer-wide paper-out must not be attributed to a pending job"},
+          "cupsJobIds": {"type": "array", "items": {"type": "integer", "minimum": 1}},
+          "problem": {"type": "string", "enum": ["", "submission_uncertain", "cups_unavailable", "cancel_uncertain", "printer_stopped", "printer_busy", "device_cancel_required", "device_cancel_failed", "settings_rejected"]},
+          "deviceCancelRequired": {"type": "boolean", "description": "Device cleanup remains unverified; persists across restarts. Configured automatic cancellation clears this only after the CUPS backend releases the device and the device helper succeeds."},
+          "createdAt": {"type": "string", "format": "date-time"}, "updatedAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "Document": {
+        "type": "object",
+        "required": ["id", "name", "bytes", "pageCount", "createdAt", "expiresAt"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+          "name": {"type": "string", "minLength": 1, "maxLength": 180},
+          "bytes": {"type": "integer", "minimum": 1, "maximum": 20971520},
+          "pageCount": {"type": "integer", "minimum": 1, "maximum": 500},
+          "createdAt": {"type": "string", "format": "date-time"},
+          "expiresAt": {"type": "string", "format": "date-time"}
+        },
+        "additionalProperties": false
+      },
+      "Session": {
+        "type": "object",
+        "required": ["token", "expiresAt"],
+        "properties": {
+          "token": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"},
+          "expiresAt": {"type": "string", "format": "date-time"},
+          "user": {"$ref": "#/components/schemas/User", "description": "Present only in WeChat mode"}
+        },
+        "additionalProperties": false
+      },
+      "User": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "name", "namePrompted", "banned", "isAdmin", "createdAt", "lastSeenAt"],
+        "properties": {
+          "id": {"$ref": "#/components/schemas/RecordID"},
+          "name": {"type": "string", "maxLength": 40},
+          "namePrompted": {"type": "boolean"}, "banned": {"type": "boolean"},
+          "isAdmin": {"type": "boolean", "description": "Computed from server configuration, never writable by clients"},
+          "createdAt": {"type": "string", "format": "date-time"}, "lastSeenAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "AccountSettings": {
+        "type": "object", "additionalProperties": false, "required": ["printingEnabled"],
+        "properties": {"printingEnabled": {"type": "boolean"}}
+      },
+      "Profile": {
+        "type": "object", "additionalProperties": false, "required": ["user", "settings"],
+        "properties": {"user": {"$ref": "#/components/schemas/User"}, "settings": {"$ref": "#/components/schemas/AccountSettings"}}
+      },
+      "AdminDashboard": {
+        "type": "object", "additionalProperties": false, "required": ["printers", "tasks", "settings"],
+        "properties": {
+          "printers": {"type": "array", "items": {"$ref": "#/components/schemas/Printer"}},
+          "printerStatusAvailable": {"type": "boolean", "description": "False means CUPS status lookup failed, not that no printers exist"},
+          "settings": {"$ref": "#/components/schemas/AccountSettings"},
+          "tasks": {"type": "array", "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["id", "userId", "userName", "printerId", "state", "sheetCount", "createdAt"],
+            "properties": {
+              "id": {"$ref": "#/components/schemas/RecordID"}, "userId": {"type": "string", "description": "User ID, or legacy token-hash owner"},
+              "userName": {"type": "string"}, "printerId": {"type": "string"}, "state": {"type": "string"},
+              "cupsJobState": {"type": "integer", "minimum": 0, "maximum": 9, "description": "Optional last verified IPP state, with the same semantics as PrintJob.cupsJobState"},
+              "problem": {"type": "string"}, "deviceCancelRequired": {"type": "boolean"},
+              "sheetCount": {"type": "integer", "minimum": 1}, "createdAt": {"type": "string", "format": "date-time"}
+            }
+          }}
+        }
+      },
+      "Printer": {
+        "type": "object",
+        "required": ["id", "name", "model", "location", "state", "acceptingJobs", "stateReasons", "capabilities"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1, "description": "CUPS queue name, stable within the configured scheduler"},
+          "name": {"type": "string"},
+          "model": {"type": "string"},
+          "location": {"type": "string"},
+          "state": {"type": "string", "enum": ["idle", "processing", "stopped", "unknown"]},
+          "acceptingJobs": {"type": ["boolean", "null"]},
+          "stateReasons": {"type": "array", "items": {"type": "string"}},
+          "stateMessage": {"type": "string", "description": "Last queue message reported by CUPS, potentially stale; not proof of current physical state"},
+          "deviceState": {"type": "string", "enum": ["connected", "disconnected", "unknown"], "description": "USB enumeration only, checked read-only via sysfs for loopback CUPS on Linux with an identified USB URI. Does not prove readiness or distinguish power-off from unplugging. Unknown on remote CUPS, unsupported OS, missing identity or inaccessible sysfs. Device URI and serial are not returned"},
+          "manualDuplexProfile": {"type": "string", "description": "Optional deployment-owned manual handling profile. Currently rear-face-up-v1; absent or unknown profiles must not enable a client's built-in reload illustration. Separate from CUPS automatic sides capabilities"},
+          "activity": {
+            "type": "object", "additionalProperties": false, "required": ["state", "waitingJobs"],
+            "description": "PrintBridge reservations only; independent of CUPS telemetry and external clients. No user, document or task identities are exposed. Optional on older servers",
+            "properties": {
+              "state": {"type": "string", "enum": ["idle", "submitting", "printing", "awaiting_flip", "canceling"]},
+              "waitingJobs": {"type": "integer", "minimum": 0, "description": "Number of PrintBridge jobs not yet submitted for this printer, including the current user's"}
+            }
+          },
+          "capabilities": {"$ref": "#/components/schemas/PrinterCapabilities"}
+        },
+        "additionalProperties": false
+      },
+      "PrinterCapabilities": {
+        "type": "object",
+        "required": ["media", "sides", "colorModes", "copies", "defaultMedia", "defaultSides", "defaultColorMode"],
+        "properties": {
+          "media": {"type": "array", "items": {"type": "string"}, "description": "IPP media keywords"},
+          "mediaTypes": {"type": "array", "items": {"type": "string"}, "description": "Reported media-type-supported keywords; absent means unknown"},
+          "mediaSources": {"type": "array", "items": {"type": "string"}, "description": "Reported media-source-supported keywords; absent means unknown"},
+          "defaultMediaType": {"type": "string"},
+          "defaultMediaSource": {"type": "string"},
+          "sides": {"type": "array", "items": {"type": "string"}, "description": "IPP sides-supported keywords"},
+          "colorModes": {"type": "array", "items": {"type": "string"}},
+          "copies": {
+            "type": ["object", "null"],
+            "required": ["min", "max"],
+            "properties": {
+              "min": {"type": "integer", "minimum": 1},
+              "max": {"type": "integer", "minimum": 1}
+            },
+            "additionalProperties": false
+          },
+          "defaultMedia": {"type": "string"},
+          "defaultSides": {"type": "string"},
+          "defaultColorMode": {"type": "string"}
+        },
+        "additionalProperties": false
+      },
+      "ServerInfo": {
+        "type": "object",
+        "required": ["name", "version", "apiVersion"],
+        "properties": {
+          "name": {"type": "string", "const": "PrintBridge"},
+          "version": {"type": "string"},
+          "apiVersion": {"type": "string", "const": "v1"},
+          "loginMode": {"type": "string", "const": "wechat", "description": "Omitted in legacy anonymous mode"}
+        },
+        "additionalProperties": false
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": {"type": "string"},
+              "message": {"type": "string"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "responses": {
+      "AccessDenied": {
+        "description": "403 user_banned on any authenticated endpoint; admin_required for administrator-only operations or attempts to ban the configured owner",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+      },
+      "AccountFailure": {
+        "description": "internal_error; no external login responses, OpenID, session_key or secrets exposed",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+      },
+      "PrintFailure": {
+        "description": "400 invalid_settings/invalid_page/invalid_request; 404 print_not_found/document_not_found; 409 print_conflict/active_print_exists/printing_paused; 415 invalid_content_type; 422 preview_failed/watermark_font_unavailable; 503 print_busy (Retry-After: 2)/cups_unavailable/pdf_tools_unavailable; 507 print_capacity/document_storage_full. Unexpected failures use document_error. No raw backend diagnostics are returned.",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+      },
+      "DocumentNotFound": {
+        "description": "error.code=document_not_found; missing, expired, invalid ID or belongs to another session",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+      },
+      "DocumentFailure": {
+        "description": "error.code=document_error; storage or unexpected document operation failure",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+      },
+      "DocumentUnavailable": {
+        "description": "error.code=document_busy (Retry-After: 2), pdf_tools_unavailable or office_unavailable",
+        "headers": {"Retry-After": {"schema": {"type": "string", "const": "2"}, "description": "Present only when busy"}},
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+      },
+      "DocumentTimeout": {
+        "description": "error.code=document_timeout",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+      },
+      "DocumentStorageFull": {
+        "description": "error.code=document_storage_full; document count or file quota reached",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+      },
+      "InvalidRequest": {
+        "description": "error.code=invalid_request; malformed, excessive or invalid JSON request",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+      },
+      "SessionExpired": {
+        "description": "error.code=session_expired; session missing, invalid, revoked or expired",
+        "headers": {"WWW-Authenticate": {"schema": {"type": "string", "const": "Bearer"}}},
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+      },
+      "CUPSUnavailable": {
+        "description": "error.code=cups_unavailable; connection, timeout, HTTP or IPP response failure",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+      },
+      "MethodNotAllowed": {
+        "description": "Unsupported method at a known path. Unregistered paths return 404 with error.code=not_found. Allow lists the methods supported at that path.",
+        "headers": {
+          "Allow": {
+              "schema": {"type": "string", "enum": ["GET, HEAD", "GET, HEAD, POST", "POST", "DELETE"]}
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/Error"},
+            "example": {
+              "error": {
+                "code": "method_not_allowed",
+                "message": "method not allowed"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

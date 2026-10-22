@@ -1,0 +1,97 @@
+name: checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: server
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - name: Check formatting
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            printf '%s\n' "$unformatted"
+            exit 1
+          fi
+      - name: Vet
+        run: go vet ./...
+      - name: Test with race detector
+        run: go test -race ./...
+      - name: Install document tools for integration checks
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils libreoffice-writer libreoffice-calc libreoffice-impress fonts-noto-cjk
+      - name: Verify real document conversion and virtual printing
+        if: runner.os == 'Linux'
+        env:
+          PRINTBRIDGE_TEST_POPPLER: '1'
+          PRINTBRIDGE_TEST_OFFICE: soffice
+          PRINTBRIDGE_TEST_WATERMARK_FONT: /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
+        run: |
+          go test -race ./internal/pdf ./internal/app -run 'TestOfficeWithRealConverter|TestPopplerWithSyntheticDocument|TestReal|TestPhoneJPEGOrientation|Test.*AgainstVirtualScheduler' -v
+          go test -race ./internal/printing -run '^TestPrintPreviewUsesColorMode' -v
+      - name: Build
+        run: go build ./...
+      - name: Cross-compile for Raspberry Pi ARM64
+        if: runner.os == 'Linux'
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          go build -trimpath -o ../bin/printbridge-linux-arm64 ./cmd/printbridge
+          go build -trimpath -o ../bin/printbridge-canon-monitor-linux-arm64 ./cmd/printbridge-canon-monitor
+      - name: Verify optional monitor installer with fake queues
+        if: runner.os == 'Linux'
+        run: python3 -m unittest discover -s ../deploy/tests
+      - name: Verify monitor against isolated CUPS
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y cups-daemon cups-client cups-ipp-utils
+          go build -trimpath -o ../bin/printbridge-canon-monitor ./cmd/printbridge-canon-monitor
+          go test -c -o ../bin/printing.test ./internal/printing
+          python3 ../deploy/verify-canon-monitor.py --binary ../bin/printbridge-canon-monitor \
+            --cancel-delay 5 --printing-test ../bin/printing.test
+
+  miniprogram:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: miniprogram
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: miniprogram/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run setup
+      - run: npm run check
+      - run: npm test

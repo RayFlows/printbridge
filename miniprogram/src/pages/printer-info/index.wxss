@@ -1,0 +1,10 @@
+.info-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-bottom: 24rpx; }
+.info-heading .title { flex: 1; min-width: 0; }
+.loading { padding: 48rpx 0; }
+.identity { display: flex; align-items: center; gap: 24rpx; padding: 24rpx 0 32rpx; }
+.printer-name { flex: 1; min-width: 0; font-size: 30rpx; font-weight: 600; line-height: 1.6; overflow-wrap: anywhere; word-break: break-all; }
+.detail-row { display: flex; align-items: baseline; gap: 24rpx; padding: 20rpx 0; border-bottom: 2rpx solid #e0e5e6; font-size: 26rpx; line-height: 1.7; }
+.detail-key { flex: 0 0 120rpx; color: #6d777b; }
+.detail-value { flex: 1; min-width: 0; overflow-wrap: anywhere; word-break: break-all; }
+.section-title { font-size: 30rpx; font-weight: 600; margin: 40rpx 0 8rpx; }
+.reason { color: #9c4327; font-size: 26rpx; line-height: 1.7; padding: 24rpx 0; overflow-wrap: anywhere; }

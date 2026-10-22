@@ -1,0 +1,4 @@
+{
+  "desc": "Private device connection pages are not searchable.",
+  "rules": [{"action": "disallow", "page": "*"}]
+}

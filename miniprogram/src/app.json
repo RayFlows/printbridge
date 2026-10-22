@@ -1,0 +1,24 @@
+{
+  "pages": ["pages/connect/index", "pages/printers/index", "pages/mine/index", "pages/admin/index", "pages/printer-info/index", "pages/document/index", "pages/settings/index", "pages/jobs/index"],
+  "tabBar": {
+    "custom": true,
+    "color": "#6d777b",
+    "selectedColor": "#087f73",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/printers/index", "text": "打印" },
+      { "pagePath": "pages/mine/index", "text": "我的" }
+    ]
+  },
+  "window": {
+    "navigationBarTitleText": "印桥",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f5f6f7",
+    "backgroundTextStyle": "dark"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

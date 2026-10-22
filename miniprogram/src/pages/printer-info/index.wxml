@@ -1,0 +1,25 @@
+<view class="page">
+  <view class="info-heading">
+    <view class="title">打印机信息</view>
+    <t-button custom-style="width:72rpx;min-width:0;padding:0;margin:0;" icon="refresh" variant="text"
+      aria-label="刷新打印机信息" disabled="{{refreshing}}" bind:tap="onRefresh" />
+  </view>
+  <view wx:if="{{error}}" class="error" role="alert">{{error}}</view>
+  <view wx:if="{{loading}}" class="loading"><t-loading theme="circular" text="读取打印机信息" /></view>
+  <block wx:elif="{{printer}}">
+    <view class="identity"><t-icon name="print" size="64rpx" color="#087f73" /><view class="printer-name">{{printer.name}}</view></view>
+    <view class="detail-row"><text class="detail-key">队列名称</text><text class="detail-value">{{printer.id}}</text></view>
+    <view class="detail-row"><text class="detail-key">型号</text><text class="detail-value">{{printer.model || '未报告'}}</text></view>
+    <view class="detail-row"><text class="detail-key">位置</text><text class="detail-value">{{printer.location || '未报告'}}</text></view>
+    <view class="detail-row"><text class="detail-key">设备连接</text><text class="detail-value">{{printer.deviceLabel}}</text></view>
+    <view class="detail-row"><text class="detail-key">打印队列</text><text class="detail-value">{{printer.queueLabel}}</text></view>
+    <view class="detail-row"><text class="detail-key">接收状态</text><text class="detail-value">{{printer.acceptingLabel}}</text></view>
+    <view wx:if="{{printer.reasonsLabel}}" class="reason">{{printer.reasonsLabel}}</view>
+    <view class="section-title">打印能力</view>
+    <view class="detail-row"><text class="detail-key">单双面</text><text class="detail-value">{{printer.sidesLabel}}</text></view>
+    <view class="detail-row"><text class="detail-key">颜色</text><text class="detail-value">{{printer.colorLabel}}</text></view>
+    <view class="detail-row"><text class="detail-key">份数</text><text class="detail-value">{{printer.copiesLabel}}</text></view>
+    <view class="detail-row"><text class="detail-key">纸张</text><text class="detail-value">{{printer.mediaLabel}}</text></view>
+    <view class="detail-row"><text class="detail-key">默认纸张</text><text class="detail-value">{{printer.capabilities.defaultMedia || '未报告'}}</text></view>
+  </block>
+</view>

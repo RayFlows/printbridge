@@ -1,0 +1,24 @@
+.jobs-page { padding-bottom: calc(32rpx + env(safe-area-inset-bottom)); }
+.toolbar { display: flex; align-items: center; justify-content: space-between; padding: 24rpx 32rpx 12rpx; }
+.title { font-size: 36rpx; font-weight: 600; }
+.message { margin: 24rpx 32rpx; }
+.status { padding: 72rpx 32rpx; text-align: center; }
+.empty-label { margin-top: 24rpx; font-size: 28rpx; }
+.job-heading { display: flex; align-items: center; gap: 24rpx; padding: 28rpx 32rpx; }
+.job-copy { flex: 1; min-width: 0; }
+.name { font-size: 28rpx; font-weight: 600; line-height: 1.6; word-break: break-all; }
+.meta { font-size: 24rpx; line-height: 1.6; color: #6d777b; margin-top: 8rpx; word-break: break-all; }
+.job-state { padding: 28rpx 32rpx; background: #fff; font-size: 32rpx; font-weight: 600; color: #087f73; }
+.state-canceled, .state-failed { color: #b64d43; }
+.problem { margin: 20rpx 32rpx; padding-left: 20rpx; border-left: 6rpx solid #bc692c; color: #86471b; font-size: 26rpx; line-height: 1.7; }
+.flip-section { padding: 32rpx; background: #fff; border-top: 2rpx solid #e1e6e7; }
+.section-title { font-size: 30rpx; font-weight: 600; margin-bottom: 28rpx; }
+.legacy-reload { font-size: 28rpx; line-height: 1.7; }
+.cancel-section .legacy-reload { margin-bottom: 24rpx; }
+.cancel-section .completion-note { margin: 24rpx 0; }
+.paper-confirm { display: flex; align-items: center; gap: 12rpx; margin: 32rpx 0; font-size: 26rpx; line-height: 1.7; }
+.paper-confirm > text { flex: 1; min-width: 0; }
+.completion-note { margin: 24rpx 32rpx; font-size: 26rpx; line-height: 1.7; color: #626c70; }
+.detail { display: flex; gap: 20rpx; padding: 16rpx 32rpx; font-size: 24rpx; line-height: 1.6; color: #626c70; flex-wrap: wrap; }
+.detail > text:first-child { margin-right: auto; }
+.actions { padding: 24rpx 32rpx; display: flex; flex-direction: column; gap: 16rpx; }

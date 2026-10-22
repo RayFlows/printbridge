@@ -1,0 +1,20 @@
+[Unit]
+Description=PrintBridge document and print service
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=exec
+WorkingDirectory=%h/.local/share/printbridge
+Environment=PRINTBRIDGE_DATA_DIR=%h/.local/share/printbridge/data
+EnvironmentFile=%h/.config/printbridge/service.env
+ExecStart=%h/.local/share/printbridge/current/printbridge
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

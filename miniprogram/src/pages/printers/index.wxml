@@ -1,0 +1,59 @@
+<view class="page tab-page">
+  <view class="device-heading">
+    <view class="heading-copy">
+      <view class="title">打印机</view>
+    </view>
+    <t-button id="refresh" custom-style="width:72rpx;min-width:0;padding:0;margin:0;" icon="refresh" variant="text" theme="primary" size="medium"
+      aria-label="刷新打印机" disabled="{{status === 'loading'}}" bind:tap="onRefresh" />
+  </view>
+  <view class="toolbar">
+    <t-button id="scan" custom-style="width:auto;margin:0;padding:0 12rpx;" icon="scan" size="small" variant="text" theme="primary"
+      bind:tap="onScan">扫码更换</t-button>
+  </view>
+  <view wx:if="{{actionError}}" class="error action-error" role="alert">{{actionError}}</view>
+  <view wx:if="{{statusError}}" class="error action-error" role="alert">{{statusError}}</view>
+  <view wx:if="{{identifying}}" class="muted action-error">正在确认用户信息</view>
+  <view wx:elif="{{!printingEnabled}}" class="muted action-error">暂不接收新打印，已有任务可继续。可下拉刷新状态。</view>
+  <view wx:if="{{status === 'loading'}}" class="status-region">
+    <t-loading theme="circular" text="正在读取打印机" />
+  </view>
+  <view wx:elif="{{status === 'error'}}" class="status-region">
+    <view class="error" role="alert">{{error}}</view>
+    <view class="retry"><t-button icon="refresh" theme="primary" variant="outline" bind:tap="onRefresh">重试</t-button></view>
+  </view>
+  <view wx:elif="{{status === 'empty'}}" class="status-region empty">
+    <t-icon name="print" size="80rpx" color="#7c878b" />
+    <view class="empty-title">还没有打印机</view>
+    <view class="muted">设备未返回打印队列</view>
+    <view class="retry"><t-button icon="refresh" variant="outline" bind:tap="onRefresh">刷新</t-button></view>
+  </view>
+  <view wx:else class="printer-list">
+    <view wx:for="{{printers}}" wx:key="id" class="printer">
+      <view class="printer-heading">
+        <view class="printer-symbol"><t-icon name="print" size="52rpx" /></view>
+        <view class="printer-summary">
+          <view class="printer-name">{{item.name}}</view>
+          <view class="printer-id">{{item.id}}</view>
+          <view class="printer-state state-{{item.stateClass}}"><text class="state-dot"></text>{{item.stateLabel}}</view>
+        </view>
+        <t-button custom-style="width:72rpx;height:72rpx;min-width:0;padding:0;margin:0;" icon="info-circle" variant="text"
+          aria-label="打印机信息" data-id="{{item.id}}" bind:tap="onInfo" />
+      </view>
+      <view wx:if="{{item.reasonsLabel}}" class="reason">{{item.reasonsLabel}}</view>
+      <view wx:if="{{item.activityLabel}}" class="muted">{{item.activityLabel}}</view>
+      <view wx:if="{{item.activeJob}}" class="current-task">
+        <view class="task-heading"><text>未完成任务</text><text class="task-state">{{item.activeJob.label}}</text></view>
+        <view class="task-name">{{item.activeJob.name}}</view>
+        <view class="task-meta">{{item.activeJob.sheetCount}} 张纸</view>
+      </view>
+      <view class="select-action">
+        <t-button custom-style="width:100%;margin:0;" theme="primary" icon="{{item.activeJob ? 'time' : 'folder-open'}}" block data-id="{{item.id}}"
+          disabled="{{(!tasksKnown || !printingEnabled) && !item.activeJob}}" bind:tap="onSelect">{{item.activeJob ? item.activeJob.actionLabel : '选择文件'}}</t-button>
+      </view>
+    </view>
+    <view class="state-note muted">
+      <view>微信无法明确读取本机型打印机的纸张/墨量和机械状态，故此状态只证明打印机的USB连接状态（打印机如果关着的按一下开关就行），请目视观察。</view>
+      <view>如有问题，请勿自行修复，请联系打印机管理员。</view>
+    </view>
+  </view>
+</view>

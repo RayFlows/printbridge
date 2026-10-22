@@ -1,0 +1,23 @@
+<view class="page entry-page">
+  <view class="brand">
+    <view class="brand-icon"><t-icon name="print" size="64rpx" /></view>
+    <view>
+      <view class="brand-name">印桥 PrintBridge</view>
+    </view>
+  </view>
+  <view class="entry-status">
+    <t-loading wx:if="{{busy}}" theme="circular" text="正在登录打印服务" />
+    <view wx:elif="{{error}}" class="error" role="alert">{{error}}</view>
+    <view wx:else class="muted">{{scanning ? '正在扫码' : '尚未选择打印机'}}</view>
+  </view>
+  <view wx:if="{{!busy}}" class="entry-actions">
+    <view wx:if="{{canRetry}}" class="retry">
+      <t-button id="retry" custom-style="width:100%;margin:0;" icon="refresh" theme="primary" block size="large"
+        bind:tap="onRetry">重试</t-button>
+    </view>
+    <t-button wx:if="{{!hasTarget}}" id="scan" custom-style="width:100%;margin:0;" icon="scan" theme="primary"
+      block size="large" disabled="{{scanning}}" loading="{{scanning}}" bind:tap="onScan">
+      {{error ? '重新扫码' : '扫码打印'}}
+    </t-button>
+  </view>
+</view>

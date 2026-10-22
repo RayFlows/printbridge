@@ -1,0 +1,62 @@
+.admin-page {
+  padding: 0 0 calc(32rpx + env(safe-area-inset-bottom));
+  --td-tab-font: 30rpx / 44rpx -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --td-tab-item-height: 96rpx;
+  --td-empty-description-color: #738086;
+  --td-empty-icon-color: #93a5a7;
+  --td-empty-description-margin-top: 20rpx;
+  --td-empty-description-font: 26rpx / 40rpx -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+}
+.admin-heading { display: flex; align-items: center; gap: 24rpx; padding: 32rpx 32rpx 20rpx; background: #fff; }
+.heading-copy { flex: 1; min-width: 0; }
+.admin-title { font-size: 36rpx; font-weight: 600; line-height: 1.4; }
+.heading-meta { margin-top: 8rpx; font-size: 24rpx; line-height: 1.6; color: #738086; overflow-wrap: anywhere; }
+.management-tabs { display: block; }
+.panel-content { background: #f5f6f7; padding-top: 20rpx; }
+.panel-section { background: #fff; padding: 32rpx; margin-bottom: 20rpx; }
+.service-row { display: flex; align-items: center; gap: 32rpx; }
+.row-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.setting-title { font-size: 30rpx; font-weight: 600; line-height: 1.5; }
+.setting-note { font-size: 24rpx; line-height: 1.6; margin-top: 6rpx; color: #738086; }
+.admission-switch { flex-shrink: 0; padding: 16rpx 0 16rpx 16rpx; }
+.section-heading { display: flex; align-items: baseline; gap: 12rpx; font-size: 30rpx; font-weight: 600; line-height: 1.5; }
+.section-count { color: #738086; font-size: 26rpx; font-weight: 400; }
+.device-row { display: flex; align-items: center; gap: 24rpx; padding: 28rpx 0 0; }
+.device-row + .device-row { margin-top: 28rpx; border-top: 2rpx solid #edf0f1; }
+.row-hover { opacity: 0.7; }
+.device-symbol, .user-avatar { width: 64rpx; height: 64rpx; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: #edf4f2; border-radius: 12rpx; }
+.device-icon { width: 44rpx; height: 44rpx; display: block; }
+.device-name { font-size: 30rpx; font-weight: 500; line-height: 1.55; word-break: normal; overflow-wrap: anywhere; }
+.device-status { display: flex; align-items: center; gap: 10rpx; flex-wrap: wrap; margin-top: 14rpx; font-size: 24rpx; line-height: 1.5; color: #6d777b; }
+.state-dot { width: 10rpx; height: 10rpx; flex-shrink: 0; border-radius: 50%; background: #90999d; }
+.state-idle { color: #087f73; }
+.state-idle .state-dot { background: #087f73; }
+.state-processing { color: #3c69b2; }
+.state-processing .state-dot { background: #3c69b2; }
+.state-stopped, .state-disconnected { color: #a34228; }
+.state-stopped .state-dot, .state-disconnected .state-dot { background: #ba6042; }
+.secondary { color: #6d777b; font-size: 24rpx; line-height: 1.6; margin-top: 8rpx; overflow-wrap: anywhere; }
+.disclosure { color: #899499; flex-shrink: 0; }
+.warning-notice { margin-top: 24rpx; padding: 20rpx 24rpx; background: #fff5eb; color: #a34228; font-size: 26rpx; line-height: 1.6; overflow-wrap: anywhere; }
+.warning-text { color: #a34228; font-size: 24rpx; line-height: 1.6; margin-top: 12rpx; overflow-wrap: anywhere; }
+.task-row, .user-row { display: flex; align-items: center; gap: 20rpx; padding: 28rpx 0; border-bottom: 2rpx solid #edf0f1; }
+.task-row:last-child, .user-row:last-child { padding-bottom: 0; border-bottom: 0; }
+.task-copy { flex: 1; min-width: 0; }
+.task-heading, .user-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10rpx 16rpx; }
+.record-name { font-size: 30rpx; font-weight: 500; line-height: 1.5; min-width: 0; overflow-wrap: anywhere; word-break: normal; }
+.task-state { color: #3c69b2; font-size: 24rpx; line-height: 1.5; }
+.identifier { margin-top: 8rpx; font-size: 24rpx; line-height: 1.5; color: #839096; font-variant-numeric: tabular-nums; }
+.row-action { flex-shrink: 0; --td-button-small-font: 500 24rpx / 36rpx -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; --td-button-small-icon-size: 28rpx; }
+.empty-region { padding: 48rpx 0 24rpx; }
+.user-tools { margin-bottom: 0; padding-bottom: 28rpx; }
+.user-counts { display: flex; align-items: baseline; flex-wrap: wrap; gap: 12rpx 32rpx; margin-bottom: 24rpx; color: #738086; font-size: 24rpx; line-height: 1.5; }
+.count-number { color: #38474d; font-weight: 600; }
+.user-search { display: block; --td-search-height: 80rpx; --td-search-font: 28rpx / 44rpx -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; --td-search-icon-size: 36rpx; --td-search-clear-icon-size: 36rpx; --td-search-square-radius: 12rpx; --td-search-bg-color: #f1f4f5; }
+.user-list { padding-top: 8rpx; }
+.user-avatar { background: #f0f3f6; border-radius: 50%; }
+.user-avatar-admin { background: #e9f2ef; }
+.user-icon { width: 40rpx; height: 40rpx; display: block; }
+.role-badge { font-size: 22rpx; font-weight: 500; line-height: 1.5; color: #087f73; white-space: nowrap; }
+.role-banned { color: #a34228; }
+.feedback { margin: 24rpx 32rpx; }
+.loading { display: flex; justify-content: center; padding: 64rpx 32rpx; }

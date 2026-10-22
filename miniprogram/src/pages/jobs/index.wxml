@@ -1,0 +1,33 @@
+<view class="jobs-page">
+  <view class="toolbar"><text class="title">打印进度</text><t-button custom-style="width:72rpx;min-width:0;padding:0;margin:0;" icon="refresh" variant="text" aria-label="刷新任务" disabled="{{refreshing || acting}}" bind:tap="onRefresh" /></view>
+  <view wx:if="{{error}}" class="error message" role="alert">{{error}}</view>
+  <view wx:if="{{loading}}" class="status"><t-loading theme="circular" text="读取任务" /></view>
+  <block wx:elif="{{job}}">
+    <view class="job-heading">
+      <t-icon name="{{job.state === 'awaiting_flip' ? 'file-copy' : 'print'}}" size="60rpx" color="#087f73" />
+      <view class="job-copy"><view class="name">{{job.name}}</view><view class="meta">{{job.settings.printerId}} · {{job.sheetCount}} 张纸 · {{job.settings.copies}} 份</view></view>
+    </view>
+    <view class="job-state state-{{job.state}}">{{job.label}}</view>
+    <view wx:if="{{job.problemLabel}}" class="problem" role="alert">{{job.problemLabel}}</view>
+    <view wx:if="{{printerNotice}}" class="problem" role="status">{{printerNotice}}</view>
+    <view wx:if="{{job.state === 'canceling' && job.deviceCancelRequired}}" class="flip-section cancel-section">
+      <view class="section-title">正在停止打印</view>
+      <view class="legacy-reload">正在清理旧任务。请等状态变为“已取消”后再补纸或开始新任务。</view>
+    </view>
+    <view wx:if="{{job.state === 'awaiting_flip'}}" class="flip-section">
+      <view class="section-title">翻纸后继续打印</view>
+      <paper-reload wx:if="{{job.illustratedReload}}" />
+      <view wx:else class="legacy-reload">等纸张全部输出，保留空白纸，按创建任务时确认的方式翻好并放回。</view>
+      <checkbox-group bindchange="onPaper"><label class="paper-confirm"><checkbox value="ready" color="#087f73" checked="{{paperConfirmed}}" disabled="{{acting}}" /><text>纸张已全部输出，已翻好并放回</text></label></checkbox-group>
+      <t-button custom-style="width:100%;margin:0;" theme="primary" icon="play" block disabled="{{!paperConfirmed || acting || refreshing}}" loading="{{acting}}" bind:tap="onContinue">继续打印另一面</t-button>
+    </view>
+    <view wx:if="{{job.state === 'completed'}}" class="completion-note">打印队列已报告完成，请核对实际出纸。</view>
+    <view class="detail"><text>提交时间</text><text>{{job.dateLabel}}</text></view>
+    <view wx:if="{{job.cupsJobIds.length}}" class="detail"><text>队列编号</text><text wx:for="{{job.cupsJobIds}}" wx:key="*this">{{item}}</text></view>
+    <view class="actions">
+      <t-button wx:if="{{!job.terminal}}" custom-style="width:100%;margin:0;" icon="close" theme="danger" variant="outline" block
+        disabled="{{acting || refreshing || job.state === 'canceling'}}" bind:tap="onCancel">取消任务</t-button>
+      <t-button custom-style="width:100%;margin:0;" icon="arrow-left" variant="text" block bind:tap="onHome">返回打印机</t-button>
+    </view>
+  </block>
+</view>
